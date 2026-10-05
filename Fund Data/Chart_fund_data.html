@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>金融数据多指标与定投回测可视化分析</title>
+
+    <!-- ==================== 外部依赖 ==================== -->
+    <!-- Chart.js：图表绘制引擎 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse：CSV解析库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+
+    <!-- ==================== 样式定义 ==================== -->
+    <style>
+        /* ---------- 全局重置与基础样式 ---------- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        /* ---------- 主容器 ---------- */
+        .container {
+            max-width: 1280px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ---------- 标题 ---------- */
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            margin-bottom: 28px;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        /* ==================== 标签页样式 ==================== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e0e5ec;
+            padding-bottom: 0;
+        }
+
+        .tab-btn {
+            padding: 10px 28px;
+            background-color: #f5f7fa;
+            color: #555;
+            border: 1px solid #d8dde6;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover { background-color: #eaeef3; color: #333; }
+
+        .tab-btn.active {
+            background-color: #ffffff;
+            color: #3498db;
+            border-color: #3498db;
+            border-bottom: 2px solid #ffffff;
+            margin-bottom: -2px;
+        }
+
+        /* 标签页内容区域 */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ---------- 控制面板区域 ---------- */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
+            border-radius: 10px;
+            margin-bottom: 24px;
+            border: 1px solid #d8dde6;
+        }
+
+        .control-group { display: flex; align-items: center; gap: 8px; }
+
+        .control-group label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #444;
+            white-space: nowrap;
+        }
+
+        /* ---------- 下拉框样式 ---------- */
+        select {
+            padding: 8px 12px;
+            border: 1px solid #c0c5d0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: #fff;
+            transition: border-color 0.2s;
+            cursor: pointer;
+        }
+        select:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+
+        /* ---------- 日期输入框 ---------- */
+        input[type="date"] {
+            padding: 8px 12px;
+            border: 1px solid #c0c5d0;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #333;
+            background: #fff;
+            transition: border-color 0.2s;
+        }
+        input[type="date"]:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+
+        /* ---------- 美化文件选择按钮 ---------- */
+        #fileInput { display: none; }
+
+        .file-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 9px 20px;
+            background-color: #3498db;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(52, 152, 219, 0.3);
+        }
+        .file-btn:hover {
+            background-color: #2980b9;
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+            transform: translateY(-1px);
+        }
+        .file-btn:active { transform: translateY(0); }
+
+        /* ---------- 更新按钮 ---------- */
+        .btn-update {
+            padding: 9px 24px;
+            background-color: #27ae60;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+        }
+        .btn-update:hover {
+            background-color: #219a52;
+            box-shadow: 0 4px 12px rgba(39, 174, 96, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn-update:active { transform: translateY(0); }
+
+        /* ---------- 定投回测按钮 ---------- */
+        .btn-dca {
+            padding: 9px 24px;
+            background-color: #8e44ad;
+            color: #ffffff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 6px rgba(142, 68, 173, 0.3);
+        }
+        .btn-dca:hover {
+            background-color: #7d3c98;
+            box-shadow: 0 4px 12px rgba(142, 68, 173, 0.4);
+            transform: translateY(-1px);
+        }
+        .btn-dca:active { transform: translateY(0); }
+
+        /* ---------- 提示信息 ---------- */
+        .info-text {
+            font-size: 13px;
+            color: #7f8c8d;
+            text-align: center;
+            margin-bottom: 16px;
+            line-height: 1.8;
+        }
+
+        /* ---------- 错误提示 ---------- */
+        .error-msg {
+            color: #e74c3c;
+            background-color: #fdeaea;
+            border: 1px solid #f5c6cb;
+            border-radius: 6px;
+            padding: 10px 16px;
+            text-align: center;
+            margin-bottom: 16px;
+            font-weight: 600;
+            display: none;
+        }
+
+        /* ---------- 图表容器 ---------- */
+        .chart-wrapper {
+            position: relative;
+            height: 620px;
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e8ecf1;
+            margin-bottom: 24px;
+        }
+
+        /* ---------- 文件已选中标识 ---------- */
+        .file-selected {
+            font-size: 12px;
+            /*color: #27ae60;*/
+            color: #990000;
+            font-weight: 600;
+            margin-left: 4px;
+        }
+
+        /* ==================== 定投回测统计面板样式 ==================== */
+        .dca-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
+            border: 1px solid #d8dde6;
+            border-radius: 10px;
+            padding: 18px 20px;
+            text-align: center;
+        }
+
+        .stat-card .stat-label {
+            font-size: 13px;
+            color: #7f8c8d;
+            margin-bottom: 6px;
+        }
+
+        .stat-card .stat-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .stat-card .stat-value.highlight { color: #27ae60; }
+        .stat-card .stat-value.danger { color: #e74c3c; }
+
+        /* ---------- 指标复选框区域 ---------- */
+        .metric-checks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 14px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e9f0 100%);
+            border-radius: 10px;
+            margin-bottom: 24px;
+            border: 1px solid #d8dde6;
+        }
+
+        .metric-checks label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 13px;
+            color: #444;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: #fff;
+            border: 1px solid #d8dde6;
+            transition: all 0.2s;
+        }
+
+        .metric-checks label:hover { background: #eaeef3; }
+
+        .metric-checks input[type="checkbox"] {
+            accent-color: #3498db;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- ==================== 标题 ==================== -->
+    <h1>金融数据多指标与定投回测可视化分析</h1>
+
+    <!-- ==================== 标签页导航 ==================== -->
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('trend')">趋势分析</button>
+        <button class="tab-btn" onclick="switchTab('dca')">定投回测</button>
+    </div>
+
+    <!-- ==================== 标签页1：趋势分析（含合并图表） ==================== -->
+    <div id="tab-trend" class="tab-content active">
+        <!-- 控制面板 -->
+        <div class="controls">
+            <!-- 文件选择 -->
+            <div class="control-group">
+                <label for="fileInput">选择CSV文件:</label>
+                <input type="file" id="fileInput" accept=".csv">
+                <label for="fileInput" class="file-btn" id="fileBtnLabel">
+                    <span id="btnText">&#128194; 点击选择文件</span>
+                    <span class="file-selected" id="fileNameDisplay"></span>
+                </label>
+            </div>
+
+            <!-- 开始日期 -->
+            <div class="control-group">
+                <label for="startDate">开始日期:</label>
+                <input type="date" id="startDate">
+            </div>
+
+            <!-- 结束日期 -->
+            <div class="control-group">
+                <label for="endDate">结束日期:</label>
+                <input type="date" id="endDate">
+            </div>
+
+            <!-- 更新图表按钮 -->
+            <button class="btn-update" onclick="updateChart()">更新图表</button>
+        </div>
+
+        <!-- 指标勾选区域 -->
+        <div class="metric-checks" id="metricChecks">
+            <!-- 由JS动态生成 -->
+        </div>
+
+        <!-- 支持的列名提示（动态生成） -->
+        <p class="info-text" id="columnInfo">
+            正在加载列信息...
+        </p>
+
+        <!-- 错误信息区域 -->
+        <div id="errorMsg" class="error-msg"></div>
+
+        <!-- ==================== 合并图表区域（趋势分析 + 定投回测 共用一个Chart） ==================== -->
+        <h3 style="margin-bottom:12px;color:#1a1a2e;">多指标趋势分析（双Y轴：左-净值/指标，右-日增长率累计(%)）</h3>
+        <div class="chart-wrapper">
+            <canvas id="myChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ==================== 标签页2：定投回测 ==================== -->
+    <div id="tab-dca" class="tab-content">
+        <!-- 定投回测控制面板 -->
+        <div class="controls">
+            <!-- 开始日期 -->
+            <div class="control-group">
+                <label for="dcaStartDate">开始日期:</label>
+                <input type="date" id="dcaStartDate">
+            </div>
+
+            <!-- 结束日期 -->
+            <div class="control-group">
+                <label for="dcaEndDate">结束日期:</label>
+                <input type="date" id="dcaEndDate">
+            </div>
+
+            <!-- 定投日期下拉框 -->
+            <div class="control-group">
+                <label for="dcaDaySelect">定投日期:</label>
+                <select id="dcaDaySelect">
+                    <option value="1">每月1号</option>
+                    <option value="15">每月15号</option>
+                </select>
+            </div>
+
+            <!-- 定投金额输入 -->
+            <div class="control-group">
+                <label for="dcaAmount">定投金额(元):</label>
+                <input type="number" id="dcaAmount" value="100" min="1" step="1" style="width:80px;">
+            </div>
+
+            <!-- 开始回测按钮 -->
+            <button class="btn-dca" onclick="runDCABacktest()">开始回测</button>
+        </div>
+
+        <!-- 定投回测统计面板 -->
+        <div id="dcaStats" class="dca-stats" style="display:none;">
+            <div class="stat-card">
+                <div class="stat-label">定投次数</div>
+                <div class="stat-value" id="statTimes">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">累计投入金额(元)</div>
+                <div class="stat-value" id="statTotalAmount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">累计获得份额</div>
+                <div class="stat-value" id="statTotalShares">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">最新净值</div>
+                <div class="stat-value" id="statLatestNAV">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">当前总资产(元)</div>
+                <div class="stat-value" id="statTotalValue">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">定投收益率</div>
+                <div class="stat-value" id="statReturnRate">-</div>
+            </div>
+        </div>
+
+        <!-- 错误信息区域（定投回测专用） -->
+        <div id="dcaErrorMsg" class="error-msg"></div>
+
+        <!-- 定投回测专用图表（双Y轴视图） -->
+        <h3 style="margin-bottom:12px;color:#1a1a2e;">单位净值与定投收益率（双Y轴）</h3>
+        <div class="chart-wrapper">
+            <canvas id="myChartDCA"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== JavaScript 逻辑 ==================== -->
+<script>
+    // ==================== 全局变量 ====================
+    let rawData = [];              // 存储解析并清洗后的数据数组
+    let chartInstance = null;      // 趋势分析-合并图表实例（趋势分析 + 定投回测）
+    let chartInstanceDCA = null;   // 定投回测专用图表实例
+    let dcaDatesSet = new Set();   // 定投日期集合
+    let dcaReturnData = [];        // 定投收益率数据
+    let selectedMetrics = ['dwjz']; // 默认选中的指标key列表（默认显示单位净值）
+
+    // ==================== 指标配置 ====================
+    // 定义所有可绘制的指标：内部key、显示标签、线条颜色
+    const metricsConfig = [
+        { key: 'open',       label: '开盘',      color: '#FF6384' },
+        { key: 'high',       label: '最高',      color: '#36A2EB' },
+        { key: 'low',        label: '最低',      color: '#FFCE56' },
+        { key: 'close',      label: '收盘',      color: '#4BC0C0' },
+        { key: 'change_pct',  label: '涨幅(%)',   color: '#9966FF' },
+        { key: 'amplitude',   label: '振幅(%)',   color: '#FF9F40' },
+        { key: 'volume',      label: '总手',      color: '#C9CBCF' },
+        { key: 'amount',      label: '金额',      color: '#2ecc71' },
+        { key: 'turnover',    label: '换手(%)',   color: '#e74c3c' },
+        { key: 'dwjz',        label: '单位净值',  color: '#0099ff' },
+        { key: 'ljjz',        label: '累计净值',  color: '#8e44ad' },
+        { key: 'rzzl',        label: '日增长率(%)', color: '#27ae60' }
+    ];
+
+    // ==================== 初始化指标复选框（趋势分析专用：仅单位净值、累计净值、日增长率累计） ====================
+    function initMetricChecks() {
+        const container = document.getElementById('metricChecks');
+        container.innerHTML = '';
+        // 趋势分析页只显示：单位净值、累计净值、日增长率累计(%)
+        const trendMetrics = metricsConfig.filter(m => ['dwjz', 'ljjz', 'rzzl'].includes(m.key));
+        trendMetrics.forEach(metric => {
+            const lbl = document.createElement('label');
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.value = metric.key;
+            cb.checked = selectedMetrics.includes(metric.key);
+            cb.addEventListener('change', function() {
+                if (this.checked) {
+                    if (!selectedMetrics.includes(metric.key)) {
+                        selectedMetrics.push(metric.key);
+                    }
+                } else {
+                    selectedMetrics = selectedMetrics.filter(k => k !== metric.key);
+                }
+                // 勾选变化时自动更新趋势分析图表
+                if (rawData.length > 0 && document.getElementById('tab-trend').classList.contains('active')) {
+                    updateChart();
+                }
+            });
+            lbl.appendChild(cb);
+            // 添加颜色圆点
+            const dot = document.createElement('span');
+            dot.style.cssText = 'display:inline-block;width:10px;height:10px;border-radius:50%;background:' + metric.color + ';margin-right:4px;';
+            lbl.insertBefore(dot, cb.nextSibling);
+            lbl.appendChild(document.createTextNode(' ' + metric.label));
+            container.appendChild(lbl);
+        });
+    }
+
+    // ==================== 标签页切换 ====================
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        if (tabName === 'trend') {
+            document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+            document.getElementById('tab-trend').classList.add('active');
+            // 趋势分析与定投回测日期已解耦，不再自动重绘
+            // 如需更新趋势图表，请手动点击"更新图表"按钮
+        } else if (tabName === 'dca') {
+            document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+            document.getElementById('tab-dca').classList.add('active');
+            // syncDCADates已移除，日期解耦
+            // 切换到定投回测时，如果有定投数据则重绘定投专用图表
+            if (rawData.length > 0 && dcaReturnData.length > 0) {
+                const fd = getFilteredDCAData();
+                // 获取趋势分析的日期范围数据（单位净值曲线使用）
+                const trendFd = getFilteredData('startDate', 'endDate');
+                if (fd && trendFd) {
+                    drawCombinedDCAChart(trendFd, Array.from(dcaDatesSet), dcaReturnData, fd);
+                }
+            }
+        }
+    }
+
+    // 重置定投回测日期为趋势分析的日期范围（初始值同步）
+    function resetDCADates() {
+        const startVal = document.getElementById('startDate').value;
+        const endVal = document.getElementById('endDate').value;
+        if (startVal) document.getElementById('dcaStartDate').value = startVal;
+        if (endVal) document.getElementById('dcaEndDate').value = endVal;
+    }
+
+    // 更新定投回测日期的可选范围（限制在趋势分析日期范围内）
+    function updateDCADateConstraints() {
+        const startVal = document.getElementById('startDate').value;
+        const endVal = document.getElementById('endDate').value;
+        const dcaStart = document.getElementById('dcaStartDate');
+        const dcaEnd = document.getElementById('dcaEndDate');
+        dcaStart.min = startVal || '';
+        dcaStart.max = endVal || '';
+        dcaEnd.min = startVal || '';
+        dcaEnd.max = endVal || '';
+        // 确保定投日期值不超出范围
+        if (dcaStart.value && startVal && dcaStart.value < startVal) {
+            dcaStart.value = startVal;
+        }
+        if (dcaEnd.value && endVal && dcaEnd.value > endVal) {
+            dcaEnd.value = endVal;
+        }
+    }
+
+
+
+
+
+
+
+    // 动态更新列信息提示
+    function updateColumnInfo(columnMap) {
+        const infoEl = document.getElementById('columnInfo');
+        if (!infoEl) return;
+
+        const detectedCols = [];
+        const metricLabels = [];
+        metricsConfig.forEach(m => {
+            const colName = columnMap[m.key];
+            if (colName) {
+                detectedCols.push(m.label);
+                metricLabels.push(m.label);
+            }
+        });
+
+        // 去重
+        const uniqueMetrics = [...new Set(metricLabels)];
+
+        let html = '当前CSV文件识别到以下列：' + detectedCols.join('、');
+        html += '<br>可用指标勾选：' + uniqueMetrics.join('、');
+        html += '<br>如需绘制开盘/收盘/最高/最低等指标，请确保CSV包含对应列名';
+
+        infoEl.innerHTML = html;
+    }
+
+    // ==================== 1. 文件选择处理 ====================
+    const fileInput = document.getElementById('fileInput');
+    const fileBtnLabel = document.getElementById('fileBtnLabel');
+    const btnText = document.getElementById('btnText');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+
+    fileInput.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) {
+            btnText.innerHTML = '&#128194; 点击选择文件';
+            fileNameDisplay.textContent = '';
+            return;
+        }
+
+        // 去除文件后缀，只显示文件名主体
+        const fullName = file.name;
+        const lastDotIndex = fullName.lastIndexOf('.');
+        const pureName = lastDotIndex > -1 ? fullName.substring(0, lastDotIndex) : fullName;
+
+        btnText.innerHTML = '&#128196; ' + pureName;
+        fileNameDisplay.textContent = ' (已选择)';
+
+        readCSVFile(file);
+    });
+
+    // ==================== 2. CSV文件读取（支持UTF-8和ANSI/GBK编码自动检测） ====================
+    function readCSVFile(file) {
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+            const arrayBuffer = e.target.result;
+            let csvText = '';
+
+            // 先尝试用 UTF-8 解码
+            try {
+                const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+                csvText = utf8Decoder.decode(arrayBuffer);
+            } catch (utf8Error) {
+                // UTF-8 解码失败，回退到 GBK
+                try {
+                    const gbkDecoder = new TextDecoder('gbk');
+                    csvText = gbkDecoder.decode(arrayBuffer);
+                } catch (gbkError) {
+                    const latin1Decoder = new TextDecoder('latin1');
+                    csvText = latin1Decoder.decode(arrayBuffer);
+                }
+            }
+
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function (results) {
+                    if (results.data && results.data.length > 0) {
+                        processData(results.data, results.meta.fields);
+                    } else {
+                        showError('CSV文件为空或格式不正确');
+                    }
+                },
+                error: function (err) {
+                    showError('解析CSV失败: ' + err.message);
+                }
+            });
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    // ==================== 3. 数据处理核心逻辑 ====================
+    function processData(data, fields) {
+        try {
+            const columnMap = mapColumns(fields);
+
+            if (!columnMap.date) {
+                throw new Error('未找到"日期"或"时间"列，请检查CSV表头。');
+            }
+
+            const cleanedData = data
+                .map(row => {
+                    let dateStr = row[columnMap.date];
+                    if (!dateStr) return null;
+
+                    const dateObj = parseDateStr(dateStr);
+                    if (isNaN(dateObj.getTime())) return null;
+
+                    const item = { date: dateObj, label: formatDate(dateObj), values: {} };
+
+                    metricsConfig.forEach(metric => {
+                        const colName = columnMap[metric.key];
+                        if (colName && row[colName] !== undefined && row[colName] !== '') {
+                            let val = parseFloat(String(row[colName]).replace(/,/g, '').replace(/%/g, ''));
+                            // 日增长率(%)列的值是百分数（如3.70表示3.70%），需除以100转为小数形式（0.0370）
+                            // 与定投收益率的小数形式统一量纲，避免右Y轴显示失真
+                            if (metric.key === 'rzzl') {
+                                val = val / 100;
+                            }
+                            item.values[metric.key] = isNaN(val) ? null : val;
+                        } else {
+                            item.values[metric.key] = null;
+                        }
+                    });
+
+                    return item;
+                })
+                .filter(item => item !== null);
+
+            cleanedData.sort((a, b) => a.date - b.date);
+
+            if (cleanedData.length === 0) {
+                throw new Error('没有有效的数据行。');
+            }
+
+            rawData = cleanedData;
+
+            // 初始化日期选择器范围
+            const minDate = formatDate(cleanedData[0].date);
+            const maxDate = formatDate(cleanedData[cleanedData.length - 1].date);
+
+            ['startDate', 'dcaStartDate'].forEach(id => {
+                const el = document.getElementById(id);
+                el.min = minDate; el.max = maxDate; el.value = minDate;
+            });
+            ['endDate', 'dcaEndDate'].forEach(id => {
+                const el = document.getElementById(id);
+                el.min = minDate; el.max = maxDate; el.value = maxDate;
+            });
+
+            // 初始化定投回测日期约束
+            updateDCADateConstraints();
+
+            // 初始化指标复选框
+            initMetricChecks();
+
+            // 首次绘制趋势分析图表（仅显示趋势分析指标）
+            updateChart();
+            hideError();
+
+            // 动态更新列信息提示
+            updateColumnInfo(columnMap);
+
+        } catch (err) {
+            showError(err.message);
+            console.error('数据处理错误:', err);
+        }
+    }
+
+    // ==================== 4. 列名智能映射 ====================
+    function mapColumns(fields) {
+        const map = {};
+        const findCol = (keywords) => {
+            return fields.find(f => keywords.some(k => f.toLowerCase().includes(k)));
+        };
+        map.date       = findCol(['date', '日期', 'time', '时间', 'day']);
+        map.open       = findCol(['open', '开盘']);
+        map.high       = findCol(['high', '最高']);
+        map.low        = findCol(['low', '最低']);
+        map.close      = findCol(['close', '收盘']);
+        map.change_pct = findCol(['change', '涨幅', 'pct', 'increase']);
+        map.amplitude  = findCol(['amplitude', '振幅']);
+        map.volume     = findCol(['volume', '总手', 'vol', 'quantity']);
+        map.amount     = findCol(['amount', '金额', 'money', 'turnover_amount']);
+        map.turnover   = findCol(['turnover', '换手', 'rate']);
+        map.dwjz       = findCol(['单位净值']);
+        map.ljjz       = findCol(['累计净值']);
+        map.rzzl       = findCol(['日增长率', '日增长率(%)']);
+        return map;
+    }
+
+    // ==================== 5. 日期格式化辅助函数 ====================
+    function formatDate(dateObj) {
+        const y = dateObj.getFullYear();
+        const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(dateObj.getDate()).padStart(2, '0');
+        return y + '-' + m + '-' + d;
+    }
+
+    // ==================== 日期字符串统一解析（避免浏览器差异） ====================
+    // input[type="date"]返回 'YYYY-MM-DD' 格式，不同浏览器new Date()解析行为不一致
+    // Chrome当作本地时间，Firefox当作UTC时间，导致日期过滤错位
+    // 统一转为 'YYYY/MM/DD' 斜杠格式，确保所有浏览器一致解析为本地时间
+    function parseDateStr(dateStr) {
+        if (!dateStr) return null;
+        // 如果是斜杠格式 Already，直接使用
+        if (dateStr.includes('/')) {
+            return new Date(dateStr);
+        }
+        // 横杠格式 'YYYY-MM-DD' 转为斜杠格式
+        return new Date(dateStr.replace(/-/g, '/'));
+    }
+
+    // ==================== 获取过滤后的数据（日期范围） ====================
+    function getFilteredData(startId, endId) {
+        const startVal = document.getElementById(startId).value;
+        const endVal = document.getElementById(endId).value;
+        if (!startVal || !endVal) return null;
+        const startDate = parseDateStr(startVal);
+        const endDate = parseDateStr(endVal);
+        endDate.setHours(23, 59, 59, 999);
+        return rawData.filter(d => d.date >= startDate && d.date <= endDate);
+    }
+
+    // ==================== 6. 合并图表：趋势分析指标 + 定投回测（双Y轴，同一个Chart） ====================
+    // 左Y轴：用户选择的指标（含单位净值）
+    // 右Y轴：定投收益率
+    function updateChart() {
+        if (rawData.length === 0) {
+            showError('请先选择并加载CSV文件');
+            return;
+        }
+
+        const filteredData = getFilteredData('startDate', 'endDate');
+        if (!filteredData || filteredData.length === 0) {
+            showError('所选日期范围内无数据，请调整日期范围');
+            return;
+        }
+
+        hideError();
+
+        // ===== 清空定投回测结果数据及图表，定投参数恢复初始值 =====
+        dcaReturnData = [];
+        dcaDatesSet = new Set();
+        document.getElementById('dcaStats').style.display = 'none';
+        if (chartInstanceDCA) {
+            chartInstanceDCA.destroy();
+            chartInstanceDCA = null;
+        }
+        // 重置定投回测日期为趋势分析的日期范围
+        resetDCADates();
+        // 更新定投回测日期的可选范围
+        updateDCADateConstraints();
+
+        const labels = filteredData.map(d => d.label);
+
+        // 构建数据集
+        const datasets = [];
+
+        // 6.1 用户勾选的趋势分析指标（左Y轴，日增长率累计除外）
+        selectedMetrics.forEach(metricKey => {
+            // 日增长率累计放到右Y轴显示
+            if (metricKey === 'rzzl') return;
+            const config = metricsConfig.find(m => m.key === metricKey);
+            if (config) {
+                datasets.push({
+                    label: config.label,
+                    data: filteredData.map(d => d.values[metricKey]),
+                    borderColor: config.color,
+                    backgroundColor: config.color,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.1,
+                    yAxisID: 'y'  // 左Y轴
+                });
+            }
+        });
+
+        // 6.1b 日增长率(%) 放到右Y轴显示 - 从基准值开始的累计变化
+        if (selectedMetrics.includes('rzzl')) {
+            const rzzlConfig = metricsConfig.find(m => m.key === 'rzzl');
+            if (rzzlConfig) {
+                // 计算从基准值(0)开始的累计变化：逐日累加日增长率
+                const rzzlRaw = filteredData.map(d => d.values['rzzl']);
+                let cumulative = 0;
+                const rzzlCumulative = rzzlRaw.map(val => {
+                    cumulative += val;
+                    return cumulative;
+                });
+                datasets.push({
+                    label: '日增长率累计(%)',
+                    data: rzzlCumulative,
+                    borderColor: rzzlConfig.color,
+                    backgroundColor: rzzlConfig.color,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    tension: 0.1,
+                    yAxisID: 'yReturn'  // 右Y轴
+                });
+            }
+        }
+
+
+
+        // 销毁旧图表
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        const ctx = document.getElementById('myChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '多指标趋势分析 (' + labels[0] + ' 至 ' + labels[labels.length - 1] + ')'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.y !== null) {
+                                    if (context.dataset.yAxisID === 'yReturn') {
+                                        label += (context.parsed.y * 100).toFixed(2) + '%';
+                                    } else {
+                                        label += context.parsed.y;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: '时间' },
+                        ticks: {
+                            maxTicksLimit: 100,
+                            maxRotation: 45,
+                            minRotation: 45,
+                            callback: function (value, index, ticks) {
+                                if (index === ticks.length - 1) {
+                                    return this.getLabelForValue(value);
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        }
+                    },
+                    // 左侧Y轴：净值/指标数值
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: '单位净值 / 指标数值' },
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(0, 153, 255, 0.1)'
+                        }
+                    },
+                    // 右侧Y轴：日增长率累计(%)
+                    yReturn: {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: '日增长率累计(%)' },
+                        beginAtZero: false,
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return (value * 100).toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ==================== 定投回测核心逻辑 ====================
+
+    // ---- 获取定投日期集合（如果日期不存在，顺延为下一个交易日） ----
+    function getDCADates(filteredData, dayOfMonth) {
+        const dcaDates = new Set();
+        const dataDates = filteredData.map(d => d.label);
+
+        // 收集所有年月并排序（Set不保证顺序，转为数组后排序）
+        const yearMonths = [];
+        filteredData.forEach(d => {
+            const ym = d.date.getFullYear() + '-' + d.date.getMonth();
+            if (!yearMonths.includes(ym)) {
+                yearMonths.push(ym);
+            }
+        });
+        yearMonths.sort((a, b) => {
+                const [ay, am] = a.split('-').map(Number);
+                const [by, bm] = b.split('-').map(Number);
+                return ay - by || am - bm;
+            }); // 按年月升序处理
+
+        const lastDataDate = filteredData[filteredData.length - 1].date;
+
+        yearMonths.forEach(ym => {
+            const parts = ym.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]);
+
+            // 创建目标日期（处理目标日号超出当月天数的情况）
+            const maxDay = new Date(year, month + 1, 0).getDate();
+            const effectiveDay = Math.min(dayOfMonth, maxDay);
+            let targetDate = new Date(year, month, effectiveDay);
+
+            // 如果目标日期已超过数据范围，跳过该月
+            if (targetDate > lastDataDate) return;
+
+            // 先在当月顺延查找（最多14天）
+            let found = false;
+            for (let i = 0; i < 14; i++) {
+                const dateStr = formatDate(targetDate);
+                if (dataDates.includes(dateStr)) {
+                    dcaDates.add(dateStr);
+                    found = true;
+                    break;
+                }
+                targetDate.setDate(targetDate.getDate() + 1);
+            }
+
+            // 当月未找到则顺延到下个月初继续查找
+            if (!found) {
+                let nextMonthDate = new Date(year, month + 1, 1);
+                for (let i = 0; i < 14; i++) {
+                    const dateStr = formatDate(nextMonthDate);
+                    if (dataDates.includes(dateStr)) {
+                        dcaDates.add(dateStr);
+                        found = true;
+                        break;
+                    }
+                    nextMonthDate.setDate(nextMonthDate.getDate() + 1);
+                }
+            }
+        });
+
+        return dcaDates;
+    }
+
+    // ---- 执行定投回测计算 ----
+    function calculateDCAReturn(filteredData, dcaDatesSet, investAmount) {
+        const dcaDates = Array.from(dcaDatesSet);
+        let cumulativeShares = 0;
+        let cumulativeAmount = 0;
+        const returnCurve = [];
+
+        filteredData.forEach((day) => {
+            const dateStr = day.label;
+            const nav = day.values['dwjz'];
+
+            // 如果是定投日期，执行定投操作
+            if (dcaDates.includes(dateStr) && nav && nav > 0) {
+                const shares = investAmount / nav;
+                cumulativeShares += shares;
+                cumulativeAmount += investAmount;
+            }
+
+            // 计算当日收益率
+            if (cumulativeAmount > 0 && nav && nav > 0) {
+                const returnRate = (nav * cumulativeShares) / cumulativeAmount - 1;
+                returnCurve.push({
+                    date: dateStr,
+                    dateObj: day.date,
+                    rate: returnRate,
+                    isDCA: dcaDates.includes(dateStr)
+                });
+            } else {
+                returnCurve.push({
+                    date: dateStr,
+                    dateObj: day.date,
+                    rate: null,
+                    isDCA: false
+                });
+            }
+        });
+
+        return {
+            returnCurve,
+            dcaDates,
+            totalTimes: dcaDates.length,
+            totalAmount: cumulativeAmount,
+            totalShares: cumulativeShares
+        };
+    }
+
+    // ---- 定投回测专用图表绘制（定投回测tab使用） ----
+    function drawCombinedDCAChart(trendFilteredData, dcaDates, returnCurveData, dcaFilteredData) {
+        if (chartInstanceDCA) {
+            chartInstanceDCA.destroy();
+        }
+
+        // 使用趋势分析的日期范围作为图表X轴和单位净值数据源
+        const labels = trendFilteredData.map(d => d.label);
+        const navData = trendFilteredData.map(d => d.values['dwjz']);
+
+        // 构建收益率日期映射
+        const rateMap = {};
+        returnCurveData.forEach(d => {
+            rateMap[d.date] = d.rate;
+        });
+
+        // 定投日期集合（用于快速查找）
+        const dcaDatesSet = new Set(dcaDates);
+
+        // 定投收益率数据 - 映射到趋势分析日期范围（定投范围外为null）
+        const cleanRates = labels.map(label => {
+            return rateMap.hasOwnProperty(label) ? rateMap[label] : null;
+        });
+
+        // 基准线（收益率=0，即不赚不亏参考线）
+        const baseline = labels.map(() => 0);
+
+        // 定投日期标记 - 映射到趋势分析日期范围
+        // 在定投日期且属于定投回测范围时显示净值标记点
+        const dcaMarkerData = labels.map(label => {
+            if (dcaDatesSet.has(label) && dcaFilteredData) {
+                const dcaDay = dcaFilteredData.find(d => d.label === label);
+                if (dcaDay && dcaDay.values['dwjz']) {
+                    return dcaDay.values['dwjz'];
+                }
+            }
+            return null;
+        });
+
+        const ctx = document.getElementById('myChartDCA').getContext('2d');
+        chartInstanceDCA = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: '单位净值',
+                        data: navData,
+                        borderColor: '#0099ff',
+                        backgroundColor: 'rgba(0, 153, 255, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.1,
+                        fill: true,
+                        yAxisID: 'yNAV'
+                    },
+                    {
+                        label: '定投日期',
+                        data: dcaMarkerData,
+                        type: 'line',
+                        borderColor: '#e74c3c',
+                        backgroundColor: '#e74c3c',
+                        pointRadius: 3,
+                        pointHoverRadius: 6,
+                        showLine: false,
+                        yAxisID: 'yNAV'
+                    },
+                    {
+                        label: '定投收益率',
+                        data: cleanRates,
+                        borderColor: '#8e44ad',
+                        backgroundColor: 'rgba(142, 68, 173, 0.1)',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 5,
+                        tension: 0.1,
+                        fill: true,
+                        yAxisID: 'yReturn'
+                    },
+                    {
+                        label: '基准线(0)',
+                        data: baseline,
+                        borderColor: '#95a5a6',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        pointRadius: 0,
+                        fill: false,
+                        yAxisID: 'yReturn'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: '单位净值（趋势分析范围）与定投收益率（红色圆点=定投日期标记）'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.y !== null) {
+                                    if (context.dataset.yAxisID === 'yReturn') {
+                                        label += (context.parsed.y * 100).toFixed(2) + '%';
+                                    } else {
+                                        label += context.parsed.y;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                    legend: {
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: '时间' },
+                        ticks: {
+                            maxTicksLimit: 100,
+                            maxRotation: 45,
+                            minRotation: 45,
+                            callback: function (value, index, ticks) {
+                                if (index === ticks.length - 1) {
+                                    return this.getLabelForValue(value);
+                                }
+                                return this.getLabelForValue(value);
+                            }
+                        }
+                    },
+                    yNAV: {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: '单位净值' },
+                        beginAtZero: false,
+                        grid: {
+                            color: 'rgba(0, 153, 255, 0.1)'
+                        }
+                    },
+                    yReturn: {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: '定投收益率' },
+                        beginAtZero: false,
+                        grid: {
+                            drawOnChartArea: false
+                        },
+                        ticks: {
+                            callback: function (value) {
+                                return (value * 100).toFixed(2) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // ---- 显示定投回测统计信息 ----
+    function displayDCAStats(result, filteredData) {
+        const statsDiv = document.getElementById('dcaStats');
+        statsDiv.style.display = 'grid';
+
+        document.getElementById('statTimes').textContent = result.totalTimes;
+        document.getElementById('statTotalAmount').textContent = result.totalAmount.toFixed(2);
+        document.getElementById('statTotalShares').textContent = result.totalShares.toFixed(4);
+
+        const latestNAV = filteredData.length > 0 ? filteredData[filteredData.length - 1].values['dwjz'] : null;
+        document.getElementById('statLatestNAV').textContent = latestNAV ? latestNAV.toFixed(4) : '-';
+
+        const totalValue = (latestNAV && latestNAV > 0) ? (latestNAV * result.totalShares) : 0;
+        document.getElementById('statTotalValue').textContent = totalValue.toFixed(2);
+
+        const returnRate = result.totalAmount > 0 ? (totalValue / result.totalAmount) - 1 : 0;
+        const returnEl = document.getElementById('statReturnRate');
+        returnEl.textContent = (returnRate * 100).toFixed(2) + '%';
+        returnEl.className = 'stat-value ' + (returnRate >= 0 ? 'highlight' : 'danger');
+    }
+
+    // ---- 定投回测主函数 ----
+    function runDCABacktest() {
+        hideDCAError();
+        if (rawData.length === 0) {
+            showDCAError('请先在"趋势分析"标签页中加载CSV文件');
+            return;
+        }
+        const filteredData = getFilteredData('dcaStartDate', 'dcaEndDate');
+        if (!filteredData || filteredData.length === 0) {
+            showDCAError('所选日期范围内无数据，请调整日期范围');
+            return;
+        }
+        // 获取趋势分析的日期范围数据（用于单位净值曲线）
+        const trendFilteredData = getFilteredData('startDate', 'endDate');
+        const daySelect = document.getElementById('dcaDaySelect').value;
+        const investAmount = parseFloat(document.getElementById('dcaAmount').value) || 100;
+        const dayOfMonth = parseInt(daySelect);
+        // 获取定投日期集合
+        dcaDatesSet = getDCADates(filteredData, dayOfMonth);
+        if (dcaDatesSet.size === 0) {
+            showDCAError('在所选日期范围内未找到有效的定投日期，请调整日期范围');
+            return;
+        }
+        // 执行定投回测计算
+        const result = calculateDCAReturn(filteredData, dcaDatesSet, investAmount);
+        // 保存定投收益率数据（供定投回测tab使用）
+        dcaReturnData = result.returnCurve;
+        // 绘制定投回测专用图表（单位净值使用趋势分析日期范围，定投收益率使用定投回测日期范围）
+        drawCombinedDCAChart(trendFilteredData, Array.from(dcaDatesSet), result.returnCurve, filteredData);
+        // 显示统计信息
+        displayDCAStats(result, filteredData);
+        // 定投回测日期已解耦，不再同步到趋势分析
+        console.log('定投回测完成:', result);
+        console.log('定投日期:', Array.from(dcaDatesSet));
+        console.log('过滤数据条数:', filteredData.length);
+    }
+
+    // ---- 定投回测tab获取过滤数据 ----
+    function getFilteredDCAData() {
+        return getFilteredData('dcaStartDate', 'dcaEndDate');
+    }
+
+    // ==================== 错误提示辅助函数 ====================
+    function showError(msg) {
+        const el = document.getElementById('errorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideError() {
+        document.getElementById('errorMsg').style.display = 'none';
+    }
+
+    function showDCAError(msg) {
+        const el = document.getElementById('dcaErrorMsg');
+        el.textContent = msg;
+        el.style.display = 'block';
+    }
+
+    function hideDCAError() {
+        document.getElementById('dcaErrorMsg').style.display = 'none';
+    }
+
+    // ==================== 趋势分析日期变化时更新定投回测日期约束 ====================
+    document.getElementById('startDate').addEventListener('change', updateDCADateConstraints);
+    document.getElementById('endDate').addEventListener('change', updateDCADateConstraints);
+</script>
+
+</body>
+</html>
