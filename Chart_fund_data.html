@@ -557,12 +557,7 @@
         }
     }
 
-
-
-
-
-
-
+    
     // 动态更新列信息提示
     function updateColumnInfo(columnMap) {
         const infoEl = document.getElementById('columnInfo');
@@ -583,7 +578,7 @@
 
         let html = '当前CSV文件识别到以下列：' + detectedCols.join('、');
         html += '<br>可用指标勾选：' + uniqueMetrics.join('、');
-        html += '<br>如需绘制开盘/收盘/最高/最低等指标，请确保CSV包含对应列名';
+        //html += '<br>如需绘制开盘/收盘/最高/最低等指标，请确保CSV包含对应列名';
 
         infoEl.innerHTML = html;
     }
